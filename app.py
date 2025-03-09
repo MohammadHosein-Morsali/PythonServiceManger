@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 import os
 import subprocess
@@ -8,12 +8,15 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
+from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SECRET_KEY'] = 'your-secret-key-here'  # تغییر دهید
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///services.db'
-app.config['UPLOAD_FOLDER'] = '/mnt/d/MohammadHosein/server manager/uploads'
+app.config['UPLOAD_FOLDER'] = '/home/afzali/servermanager/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['ADMIN_PASSWORD'] = '123456'  # تغییر دهید
+
 db = SQLAlchemy(app)
 
 # Create uploads directory if it doesn't exist
@@ -24,19 +27,24 @@ ALLOWED_EXTENSIONS = {'py', 'txt', 'json', 'yaml', 'yml', 'env'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 class Service(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(500))
-    file_path = db.Column(db.String(500), nullable=False)
-    framework = db.Column(db.String(50), default='python')  # python, fastapi, flask, etc
-    venv_path = db.Column(db.String(500))
-    requirements = db.Column(db.Text)  # JSON string of requirements
-    port = db.Column(db.Integer)
-    host = db.Column(db.String(100), default='0.0.0.0')
+    directory_path = db.Column(db.String(500), nullable=False)
+    main_file = db.Column(db.String(500))
+    framework = db.Column(db.String(50), default='python')
+    custom_command = db.Column(db.String(500))
     status = db.Column(db.String(20), default='stopped')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    environment_vars = db.Column(db.Text)  # JSON string of env vars
 
 with app.app_context():
     db.create_all()
@@ -131,54 +139,127 @@ WantedBy=multi-user.target
         print(f"Error creating service: {e}")
         return False
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == app.config['ADMIN_PASSWORD']:
+            session['logged_in'] = True
+            return redirect(url_for('index'))
+        flash('Invalid password!', 'error')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
 @app.route('/')
+@login_required
 def index():
     services = Service.query.all()
     return render_template('index.html', services=services)
 
+@app.route('/terminal')
+@login_required
+def terminal():
+    return render_template('terminal.html')
+
+@app.route('/execute_command', methods=['POST'])
+@login_required
+def execute_command():
+    command = request.form.get('command')
+    try:
+        result = subprocess.run(command.split(), capture_output=True, text=True)
+        return jsonify({
+            'output': result.stdout,
+            'error': result.stderr
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/file_manager')
+@login_required
+def file_manager():
+    path = request.args.get('path', '/')
+    try:
+        items = []
+        for item in os.listdir(path):
+            full_path = os.path.join(path, item)
+            items.append({
+                'name': item,
+                'path': full_path,
+                'type': 'directory' if os.path.isdir(full_path) else 'file',
+                'size': os.path.getsize(full_path) if os.path.isfile(full_path) else 0
+            })
+        return render_template('file_manager.html', items=items, current_path=path)
+    except Exception as e:
+        flash(f'Error accessing path: {str(e)}', 'error')
+        return redirect(url_for('file_manager', path='/'))
+
+@app.route('/copy_path')
+@login_required
+def copy_path():
+    path = request.args.get('path')
+    return jsonify({'path': path})
+
 @app.route('/add_service', methods=['GET', 'POST'])
+@login_required
 def add_service():
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
-        file_path = request.form['file_path']
-        venv_path = request.form.get('venv_path')  # Now optional
+        directory_path = request.form['directory_path']
         framework = request.form['framework']
         custom_command = request.form.get('custom_command')
-        port = request.form.get('port', 8000)
-        host = request.form.get('host', '0.0.0.0')
-        env_vars = request.form.get('environment_vars', '{}')
+        main_file = request.files.get('main_file')
+        additional_files = request.files.getlist('additional_files')
 
-        # Validate file path
-        if not os.path.exists(file_path):
-            flash('Python file path does not exist!', 'error')
+        # Validate directory
+        if not os.path.exists(directory_path):
+            try:
+                os.makedirs(directory_path)
+            except Exception as e:
+                flash(f'Error creating directory: {str(e)}', 'error')
+                return redirect(url_for('add_service'))
+
+        # Check if directory is already in use
+        if Service.query.filter_by(directory_path=directory_path).first():
+            flash('This directory is already in use by another service!', 'error')
             return redirect(url_for('add_service'))
 
-        # Validate venv path only if provided
-        if venv_path and not os.path.exists(venv_path):
-            flash('Virtual environment path does not exist!', 'error')
-            return redirect(url_for('add_service'))
-        
+        # Save main file if provided
+        main_file_path = None
+        if main_file:
+            filename = secure_filename(main_file.filename)
+            main_file_path = os.path.join(directory_path, filename)
+            main_file.save(main_file_path)
+
+        # Save additional files
+        for file in additional_files:
+            if file.filename:
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(directory_path, filename)
+                file.save(file_path)
+
         new_service = Service(
             name=name,
             description=description,
-            file_path=file_path,
+            directory_path=directory_path,
+            main_file=main_file_path if main_file_path else None,
             framework=framework,
-            venv_path=venv_path,  # Can be None
-            port=port,
-            host=host,
-            status='stopped',
-            environment_vars=env_vars
+            custom_command=custom_command
         )
-        
-        if create_systemd_service(new_service, custom_command):
+
+        try:
             db.session.add(new_service)
             db.session.commit()
             flash('Service created successfully!', 'success')
-        else:
-            flash('Error creating service!', 'error')
-            
+        except Exception as e:
+            flash(f'Error creating service: {str(e)}', 'error')
+
         return redirect(url_for('index'))
+
     return render_template('add_service.html')
 
 @app.route('/service/<int:service_id>/<action>')
@@ -336,10 +417,6 @@ def list_files():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/files')
-def file_manager():
-    return render_template('files.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
