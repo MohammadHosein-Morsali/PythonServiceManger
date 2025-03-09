@@ -13,6 +13,7 @@
 - پشتیبانی از فریم‌ورک‌های مختلف (Python, FastAPI, Flask)
 - اجرای دستورات سفارشی
 - مشاهده لاگ سرویس‌ها
+- به‌روزرسانی و حذف خودکار
 
 ### نصب خودکار (توصیه شده)
 برای نصب سریع و خودکار:
@@ -34,6 +35,33 @@ sudo ./install.sh
 - دسترسی‌های لازم را تنظیم می‌کند
 - سرویس systemd را ایجاد و فعال می‌کند
 - فایروال را تنظیم می‌کند
+
+### به‌روزرسانی خودکار
+برای به‌روزرسانی به نسخه جدید:
+```bash
+wget https://raw.githubusercontent.com/MohammadHosein-Morsali/PythonServiceManger/main/update.sh
+chmod +x update.sh
+sudo ./update.sh
+```
+
+اسکریپت به‌روزرسانی:
+- کد را از مخزن به‌روز می‌کند
+- وابستگی‌های جدید را نصب می‌کند
+- از دیتابیس پشتیبان می‌گیرد
+- سرویس را مجدداً راه‌اندازی می‌کند
+
+### حذف کامل
+برای حذف کامل سرویس:
+```bash
+wget https://raw.githubusercontent.com/MohammadHosein-Morsali/PythonServiceManger/main/uninstall.sh
+chmod +x uninstall.sh
+sudo ./uninstall.sh
+```
+
+اسکریپت حذف:
+- سرویس را متوقف و غیرفعال می‌کند
+- از دیتابیس پشتیبان می‌گیرد
+- تمام فایل‌ها و دسترسی‌ها را پاک می‌کند
 
 ### نصب دستی
 اگر می‌خواهید به صورت دستی نصب کنید:
@@ -145,22 +173,14 @@ def read_root():
 3. استفاده از HTTPS
 4. محدود کردن دسترسی sudo
 
-### به‌روزرسانی
-برای به‌روزرسانی به نسخه جدید:
-```bash
-cd /opt/PythonServiceManger
-git pull
-source venv/bin/activate
-pip install -r requirements.txt
-sudo systemctl restart service-manager
-```
-
 ### ساختار پروژه
 ```
 PythonServiceManger/
 ├── app.py              # برنامه اصلی
 ├── requirements.txt    # وابستگی‌ها
 ├── install.sh         # اسکریپت نصب
+├── update.sh          # اسکریپت به‌روزرسانی
+├── uninstall.sh       # اسکریپت حذف
 └── static/            # فایل‌های استاتیک
 ```
 

@@ -11,11 +11,19 @@ from werkzeug.utils import secure_filename
 from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # تغییر دهید
+app.config['SECRET_KEY'] = os.urandom(24).hex()  # کلید تصادفی برای امنیت بیشتر
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///services.db'
-app.config['UPLOAD_FOLDER'] = '/home/afzali/servermanager/uploads'
+app.config['UPLOAD_FOLDER'] = os.path.expanduser('~/servermanager/uploads')  # تغییر مسیر به پوشه کاربر
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['ADMIN_PASSWORD'] = '123456'  # تغییر دهید
+
+# خواندن پسورد از فایل کانفیگ
+config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+if os.path.exists(config_file):
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+        app.config['ADMIN_PASSWORD'] = config.get('password', '123456')
+else:
+    app.config['ADMIN_PASSWORD'] = '123456'  # پسورد پیش‌فرض
 
 db = SQLAlchemy(app)
 
@@ -40,11 +48,17 @@ class Service(db.Model):
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(500))
     directory_path = db.Column(db.String(500), nullable=False)
+    file_path = db.Column(db.String(500))  # مسیر فایل اصلی
     main_file = db.Column(db.String(500))
     framework = db.Column(db.String(50), default='python')
     custom_command = db.Column(db.String(500))
     status = db.Column(db.String(20), default='stopped')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    port = db.Column(db.Integer, default=8000)  # پورت سرویس
+    host = db.Column(db.String(50), default='0.0.0.0')  # هاست سرویس
+    venv_path = db.Column(db.String(500))  # مسیر محیط مجازی
+    requirements = db.Column(db.Text)  # وابستگی‌ها به صورت JSON
+    environment_vars = db.Column(db.Text)  # متغیرهای محیطی به صورت JSON
 
 with app.app_context():
     db.create_all()
@@ -246,7 +260,7 @@ def add_service():
             name=name,
             description=description,
             directory_path=directory_path,
-            main_file=main_file_path if main_file_path else None,
+            file_path=main_file_path if main_file_path else None,
             framework=framework,
             custom_command=custom_command
         )
