@@ -2,6 +2,10 @@
 
 مدیریت سرویس‌های پایتون با رابط کاربری وب. این برنامه به شما امکان می‌دهد سرویس‌های systemd را برای اپلیکیشن‌های پایتونی خود مدیریت کنید.
 
+![داشبورد](screenshots/dashboard.png)
+
+[English Version](README_EN.md)
+
 ## مدیریت سرویس‌های لینوکس
 پنل مدیریت سرویس‌های لینوکس با قابلیت‌های پیشرفته
 
@@ -23,6 +27,8 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
+![نصب](screenshots/install.png)
+
 اسکریپت نصب از شما موارد زیر را می‌پرسد:
 1. نام کاربری سیستم
 2. پسورد دلخواه برای پنل مدیریت
@@ -43,6 +49,8 @@ wget https://raw.githubusercontent.com/MohammadHosein-Morsali/PythonServiceMange
 chmod +x update.sh
 sudo ./update.sh
 ```
+
+![به‌روزرسانی](screenshots/update.png)
 
 اسکریپت به‌روزرسانی:
 - کد را از مخزن به‌روز می‌کند
@@ -109,19 +117,27 @@ sudo chmod 440 /etc/sudoers.d/service-manager
    - مراجعه به `http://SERVER_IP:5000`
    - وارد کردن پسورد تنظیم شده
 
+![ورود](screenshots/login.png)
+
 2. **مدیریت سرویس‌ها**:
    - ایجاد سرویس جدید
    - شروع/توقف/راه‌اندازی مجدد سرویس‌ها
    - مشاهده وضعیت و لاگ‌ها
+
+![سرویس‌ها](screenshots/services.png)
 
 3. **مدیریت فایل‌ها**:
    - آپلود پروژه‌ها
    - ویرایش فایل‌های پیکربندی
    - مدیریت دسترسی‌ها
 
+![مدیریت فایل](screenshots/file-manager.png)
+
 4. **ترمینال تحت وب**:
    - اجرای دستورات سیستمی
    - مشاهده خروجی در لحظه
+
+![ترمینال](screenshots/terminal.png)
 
 ### مثال‌های عملی
 
