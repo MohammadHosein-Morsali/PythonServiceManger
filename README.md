@@ -2,6 +2,16 @@
 
 مدیریت سرویس‌های پایتون با رابط کاربری وب. این برنامه به شما امکان می‌دهد سرویس‌های systemd را برای اپلیکیشن‌های پایتونی خود مدیریت کنید.
 
+## امکانات
+- مدیریت سرویس‌های systemd با رابط کاربری وب
+- احراز هویت برای امنیت بیشتر
+- ترمینال تحت وب برای اجرای دستورات
+- فایل منیجر برای مدیریت فایل‌ها
+- آپلود فایل‌های پروژه
+- پشتیبانی از فریمورک‌های مختلف (Python, FastAPI, Flask)
+- امکان اجرای دستورات سفارشی
+- مشاهده لاگ‌های سرویس
+
 ## نصب سریع
 
 ```bash
@@ -10,8 +20,8 @@ sudo apt update
 sudo apt install python3-pip python3-venv git
 
 # کلون پروژه
-git clone https://github.com/yourusername/service-manager.git
-cd service-manager
+git clone https://github.com/MohammadHosein-Morsali/PythonServiceManger.git
+cd PythonServiceManger
 
 # ساخت محیط مجازی و نصب وابستگی‌ها
 python3 -m venv venv
@@ -27,6 +37,9 @@ sudo tee /etc/sudoers.d/service-manager << EOF
 %systemd-service ALL=(ALL) NOPASSWD: /bin/chmod
 %systemd-service ALL=(ALL) NOPASSWD: /bin/mv
 EOF
+
+# تنظیم پسورد (در فایل app.py)
+# app.config['ADMIN_PASSWORD'] = 'your-password-here' را تغییر دهید
 
 # راه‌اندازی به عنوان سرویس
 sudo tee /etc/systemd/system/service-manager.service << EOF
@@ -49,160 +62,133 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable service-manager
 sudo systemctl start service-manager
-
-# بررسی وضعیت
-sudo systemctl status service-manager
 ```
-
-## امکانات
-- ایجاد و مدیریت سرویس‌های systemd
-- آپلود فایل‌های پروژه و مدیریت آن‌ها
-- پشتیبانی از فریمورک‌های مختلف (FastAPI, Flask, Python)
-- امکان اجرای دستورات سفارشی
-- مدیریت محیط‌های مجازی و پکیج‌ها
-- مشاهده لاگ‌های سرویس
-- تنظیم متغیرهای محیطی
-- مدیریت پورت و هاست
-
-## نصب و راه‌اندازی
-
-1. نصب پیش‌نیازها:
-   ```bash
-   sudo apt update
-   sudo apt install python3-venv python3-pip
-   ```
-
-2. کلون و نصب پروژه:
-   ```bash
-   git clone <repository-url>
-   cd service-manager
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-3. تنظیم دسترسی‌های sudo:
-   ```bash
-   sudo visudo
-   ```
-   این خط را اضافه کنید (به جای your-username نام کاربری خود را بنویسید):
-   ```
-   your-username ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl
-   ```
-
-4. تنظیم مسیر آپلود در `app.py`:
-   ```python
-   app.config['UPLOAD_FOLDER'] = '/path/to/your/upload/directory'
-   ```
-
-5. اجرای برنامه:
-   ```bash
-   python app.py
-   ```
-
-## نصب به عنوان سرویس
-
-1. ایجاد فایل سرویس:
-   ```bash
-   sudo nano /etc/systemd/system/service-manager.service
-   ```
-
-2. محتوای فایل سرویس:
-   ```ini
-   [Unit]
-   Description=Python Service Manager
-   After=network.target
-
-   [Service]
-   User=your-username
-   WorkingDirectory=/path/to/service-manager
-   Environment="PATH=/path/to/service-manager/venv/bin"
-   ExecStart=/path/to/service-manager/venv/bin/python app.py
-   Restart=always
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-3. فعال‌سازی و اجرای سرویس:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable service-manager
-   sudo systemctl start service-manager
-   ```
 
 ## نحوه استفاده
 
-### ایجاد سرویس جدید
+### ورود به سیستم
 1. به آدرس `http://your-server-ip:5000` بروید
-2. روی "Add Service" کلیک کنید
-3. اطلاعات سرویس را وارد کنید:
-   - نام سرویس
-   - توضیحات
-   - نام پوشه پروژه
-   - فایل‌های پروژه را آپلود کنید
-   - فریمورک را انتخاب کنید
-   - فایل اصلی یا دستور سفارشی را مشخص کنید
-   - پورت و هاست را تنظیم کنید
-   - پکیج‌های مورد نیاز را وارد کنید
-   - متغیرهای محیطی را تنظیم کنید
+2. با پسورد تنظیم شده وارد شوید
 
-### مدیریت سرویس‌ها
-- **شروع/توقف**: از دکمه‌های Start/Stop استفاده کنید
-- **ریستارت**: دکمه Restart را بزنید
-- **مشاهده لاگ**: روی دکمه Logs کلیک کنید
-- **ویرایش**: با دکمه Edit تنظیمات را تغییر دهید
-- **حذف**: از دکمه Delete برای حذف سرویس استفاده کنید
+### ایجاد سرویس جدید
+1. روی "Add Service" کلیک کنید
+2. اطلاعات سرویس را وارد کنید:
+   - نام سرویس (مثال: `my-bot`)
+   - توضیحات (اختیاری)
+   - مسیر پوشه پروژه (با فایل منیجر انتخاب کنید)
+   - فایل‌های پروژه را آپلود کنید:
+     - فایل اصلی
+     - فایل‌های اضافی (config و غیره)
+   - نوع پروژه را انتخاب کنید:
+     - Python: برای اسکریپت‌های ساده
+     - FastAPI: برای سرویس‌های FastAPI
+     - Flask: برای سرویس‌های Flask
+     - Custom: برای دستور اجرای سفارشی
 
 ### مدیریت فایل‌ها
 1. روی "File Manager" کلیک کنید
-2. می‌توانید:
-   - پوشه جدید بسازید
-   - فایل آپلود کنید
-   - فایل‌ها را مدیریت کنید
-   - در پوشه‌ها بگردید
+2. امکانات:
+   - مرور پوشه‌ها و فایل‌ها
+   - کپی کردن مسیر فایل‌ها
+   - انتخاب پوشه برای پروژه جدید
 
-## نکات امنیتی
-1. حتماً فایروال را تنظیم کنید:
-   ```bash
-   sudo ufw allow 5000
-   ```
-2. برای محیط تولید:
-   - از HTTPS استفاده کنید
-   - احراز هویت اضافه کنید
-   - از nginx به عنوان reverse proxy استفاده کنید
+### ترمینال
+1. روی "Terminal" کلیک کنید
+2. دستورات خود را وارد کنید
+3. نتیجه اجرا را مشاهده کنید
+
+### مثال‌های کاربردی
+
+#### 1. بات تلگرام
+```
+Name: telegram-bot
+Directory: /home/user/bots/telegram-bot
+Main File: bot.py
+Framework: Python
+```
+
+#### 2. سرویس FastAPI
+```
+Name: api-service
+Directory: /home/user/services/api
+Main File: main.py
+Framework: FastAPI
+```
+
+#### 3. دستور سفارشی
+```
+Name: custom-bot
+Directory: /home/user/bots/custom
+Main File: run.py
+Framework: Custom
+Custom Command: python -m bot --config config.json
+```
 
 ## عیب‌یابی
-- اگر سرویس اجرا نشد، لاگ‌ها را بررسی کنید
-- دسترسی‌های پوشه‌ها را چک کنید
-- مطمئن شوید systemd فعال است
-- دسترسی‌های sudo را بررسی کنید
 
-## پشتیبانی از فریمورک‌ها
-
-### FastAPI
-```python
-from fastapi import FastAPI
-app = FastAPI()
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-```
-
-### Flask
-```python
-from flask import Flask
-app = Flask(__name__)
-
-@app.route("/")
-def hello():
-    return "Hello, World!"
-```
-
-### دستور سفارشی
-می‌توانید هر دستوری را اجرا کنید:
+### خطای دسترسی
 ```bash
-python -m bot --config config.json
-python script.py --arg1 value1
-``` 
+# بررسی عضویت در گروه
+groups
+
+# اجرای مجدد دستورات دسترسی
+sudo usermod -a -G systemd-service $USER
+sudo chmod 775 /etc/systemd/system
+```
+
+### خطای سرویس
+```bash
+# بررسی لاگ‌ها
+sudo journalctl -u service-name -n 50
+
+# بررسی وضعیت
+sudo systemctl status service-name
+```
+
+### مشکل آپلود
+1. بررسی دسترسی‌های پوشه آپلود
+2. بررسی حجم فایل (حداکثر 16MB)
+3. بررسی پسوند مجاز فایل
+
+## نکات امنیتی
+1. حتماً پسورد پیش‌فرض را تغییر دهید
+2. فایروال را تنظیم کنید:
+   ```bash
+   sudo ufw allow 5000
+   sudo ufw enable
+   ```
+3. از HTTPS استفاده کنید
+4. دسترسی‌های sudo را محدود کنید
+
+## به‌روزرسانی
+```bash
+cd PythonServiceManger
+git pull
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart service-manager
+```
+
+## ساختار پروژه
+```
+PythonServiceManger/
+├── app.py              # فایل اصلی برنامه
+├── requirements.txt    # وابستگی‌ها
+├── templates/          # قالب‌های HTML
+│   ├── base.html
+│   ├── index.html
+│   ├── add_service.html
+│   ├── login.html
+│   ├── terminal.html
+│   └── file_manager.html
+└── instance/          # دیتابیس SQLite
+    └── services.db
+```
+
+## مشارکت
+1. پروژه را fork کنید
+2. تغییرات خود را اعمال کنید
+3. Pull Request ارسال کنید
+
+## لایسنس
+MIT 
