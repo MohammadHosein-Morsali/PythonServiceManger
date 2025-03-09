@@ -2,193 +2,172 @@
 
 مدیریت سرویس‌های پایتون با رابط کاربری وب. این برنامه به شما امکان می‌دهد سرویس‌های systemd را برای اپلیکیشن‌های پایتونی خود مدیریت کنید.
 
-## امکانات
-- مدیریت سرویس‌های systemd با رابط کاربری وب
+## مدیریت سرویس‌های لینوکس
+پنل مدیریت سرویس‌های لینوکس با قابلیت‌های پیشرفته
+
+### امکانات
+- مدیریت سرویس‌های systemd از طریق وب
 - احراز هویت برای امنیت بیشتر
 - ترمینال تحت وب برای اجرای دستورات
-- فایل منیجر برای مدیریت فایل‌ها
-- آپلود فایل‌های پروژه
-- پشتیبانی از فریمورک‌های مختلف (Python, FastAPI, Flask)
-- امکان اجرای دستورات سفارشی
-- مشاهده لاگ‌های سرویس
+- مدیریت فایل‌ها و آپلود پروژه
+- پشتیبانی از فریم‌ورک‌های مختلف (Python, FastAPI, Flask)
+- اجرای دستورات سفارشی
+- مشاهده لاگ سرویس‌ها
 
-## نصب سریع
-
+### نصب خودکار (توصیه شده)
+برای نصب سریع و خودکار:
 ```bash
-# نصب پیش‌نیازها
+wget https://raw.githubusercontent.com/MohammadHosein-Morsali/PythonServiceManger/main/install.sh
+chmod +x install.sh
+sudo ./install.sh
+```
+
+اسکریپت نصب از شما موارد زیر را می‌پرسد:
+1. نام کاربری سیستم
+2. پسورد دلخواه برای پنل مدیریت
+3. پورت دلخواه (پیش‌فرض: 5000)
+
+اسکریپت به صورت خودکار:
+- پیش‌نیازها را نصب می‌کند
+- پروژه را در `/opt/PythonServiceManger` نصب می‌کند
+- محیط مجازی Python را می‌سازد
+- دسترسی‌های لازم را تنظیم می‌کند
+- سرویس systemd را ایجاد و فعال می‌کند
+- فایروال را تنظیم می‌کند
+
+### نصب دستی
+اگر می‌خواهید به صورت دستی نصب کنید:
+
+1. نصب پیش‌نیازها:
+```bash
 sudo apt update
 sudo apt install python3-pip python3-venv git
+```
 
-# کلون پروژه
-git clone https://github.com/MohammadHosein-Morsali/PythonServiceManger.git
+2. کلون پروژه:
+```bash
+cd /opt
+sudo git clone https://github.com/MohammadHosein-Morsali/PythonServiceManger.git
 cd PythonServiceManger
+```
 
-# ساخت محیط مجازی و نصب وابستگی‌ها
+3. ساخت محیط مجازی و نصب وابستگی‌ها:
+```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
-# تنظیم دسترسی‌های sudo
-sudo groupadd systemd-service
+4. تنظیم دسترسی‌ها:
+```bash
+sudo groupadd -f systemd-service
 sudo usermod -a -G systemd-service $USER
+```
+
+5. تنظیم دسترسی sudo:
+```bash
 sudo tee /etc/sudoers.d/service-manager << EOF
 %systemd-service ALL=(ALL) NOPASSWD: /bin/systemctl
 %systemd-service ALL=(ALL) NOPASSWD: /bin/journalctl
 %systemd-service ALL=(ALL) NOPASSWD: /bin/chmod
 %systemd-service ALL=(ALL) NOPASSWD: /bin/mv
 EOF
-
-# تنظیم پسورد (در فایل app.py)
-# app.config['ADMIN_PASSWORD'] = 'your-password-here' را تغییر دهید
-
-# راه‌اندازی به عنوان سرویس
-sudo tee /etc/systemd/system/service-manager.service << EOF
-[Unit]
-Description=Python Service Manager
-After=network.target
-
-[Service]
-User=$USER
-WorkingDirectory=$(pwd)
-Environment="PATH=$(pwd)/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=$(pwd)/venv/bin/python app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# فعال‌سازی و اجرای سرویس
-sudo systemctl daemon-reload
-sudo systemctl enable service-manager
-sudo systemctl start service-manager
+sudo chmod 440 /etc/sudoers.d/service-manager
 ```
 
-## نحوه استفاده
+### نحوه استفاده
 
-### ورود به سیستم
-1. به آدرس `http://your-server-ip:5000` بروید
-2. با پسورد تنظیم شده وارد شوید
+1. **ورود به پنل**:
+   - مراجعه به `http://SERVER_IP:5000`
+   - وارد کردن پسورد تنظیم شده
 
-### ایجاد سرویس جدید
-1. روی "Add Service" کلیک کنید
-2. اطلاعات سرویس را وارد کنید:
-   - نام سرویس (مثال: `my-bot`)
-   - توضیحات (اختیاری)
-   - مسیر پوشه پروژه (با فایل منیجر انتخاب کنید)
-   - فایل‌های پروژه را آپلود کنید:
-     - فایل اصلی
-     - فایل‌های اضافی (config و غیره)
-   - نوع پروژه را انتخاب کنید:
-     - Python: برای اسکریپت‌های ساده
-     - FastAPI: برای سرویس‌های FastAPI
-     - Flask: برای سرویس‌های Flask
-     - Custom: برای دستور اجرای سفارشی
+2. **مدیریت سرویس‌ها**:
+   - ایجاد سرویس جدید
+   - شروع/توقف/راه‌اندازی مجدد سرویس‌ها
+   - مشاهده وضعیت و لاگ‌ها
 
-### مدیریت فایل‌ها
-1. روی "File Manager" کلیک کنید
-2. امکانات:
-   - مرور پوشه‌ها و فایل‌ها
-   - کپی کردن مسیر فایل‌ها
-   - انتخاب پوشه برای پروژه جدید
+3. **مدیریت فایل‌ها**:
+   - آپلود پروژه‌ها
+   - ویرایش فایل‌های پیکربندی
+   - مدیریت دسترسی‌ها
 
-### ترمینال
-1. روی "Terminal" کلیک کنید
-2. دستورات خود را وارد کنید
-3. نتیجه اجرا را مشاهده کنید
+4. **ترمینال تحت وب**:
+   - اجرای دستورات سیستمی
+   - مشاهده خروجی در لحظه
 
-### مثال‌های کاربردی
+### مثال‌های عملی
 
-#### 1. بات تلگرام
-```
-Name: telegram-bot
-Directory: /home/user/bots/telegram-bot
-Main File: bot.py
-Framework: Python
+1. **بات تلگرام**:
+```python
+# bot.py
+import telebot
+
+bot = telebot.TeleBot("YOUR_TOKEN")
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "سلام! خوش آمدید")
+
+bot.polling()
 ```
 
-#### 2. سرویس FastAPI
-```
-Name: api-service
-Directory: /home/user/services/api
-Main File: main.py
-Framework: FastAPI
+2. **سرویس FastAPI**:
+```python
+# api.py
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"message": "سلام دنیا!"}
 ```
 
-#### 3. دستور سفارشی
-```
-Name: custom-bot
-Directory: /home/user/bots/custom
-Main File: run.py
-Framework: Custom
-Custom Command: python -m bot --config config.json
-```
+### عیب‌یابی
 
-## عیب‌یابی
+1. **خطای دسترسی**:
+   - بررسی عضویت در گروه `systemd-service`
+   - بررسی دسترسی‌های sudo
+   - بررسی مالکیت فایل‌ها
 
-### خطای دسترسی
+2. **خطای سرویس**:
+   - بررسی لاگ‌ها: `journalctl -u service-manager -f`
+   - بررسی وضعیت: `systemctl status service-manager`
+   - بررسی پورت: `netstat -tulpn | grep 5000`
+
+3. **مشکل آپلود**:
+   - بررسی دسترسی‌های پوشه
+   - بررسی محدودیت حجم فایل
+
+### نکات امنیتی
+1. تغییر پسورد پیش‌فرض
+2. تنظیم فایروال
+3. استفاده از HTTPS
+4. محدود کردن دسترسی sudo
+
+### به‌روزرسانی
+برای به‌روزرسانی به نسخه جدید:
 ```bash
-# بررسی عضویت در گروه
-groups
-
-# اجرای مجدد دستورات دسترسی
-sudo usermod -a -G systemd-service $USER
-sudo chmod 775 /etc/systemd/system
-```
-
-### خطای سرویس
-```bash
-# بررسی لاگ‌ها
-sudo journalctl -u service-name -n 50
-
-# بررسی وضعیت
-sudo systemctl status service-name
-```
-
-### مشکل آپلود
-1. بررسی دسترسی‌های پوشه آپلود
-2. بررسی حجم فایل (حداکثر 16MB)
-3. بررسی پسوند مجاز فایل
-
-## نکات امنیتی
-1. حتماً پسورد پیش‌فرض را تغییر دهید
-2. فایروال را تنظیم کنید:
-   ```bash
-   sudo ufw allow 5000
-   sudo ufw enable
-   ```
-3. از HTTPS استفاده کنید
-4. دسترسی‌های sudo را محدود کنید
-
-## به‌روزرسانی
-```bash
-cd PythonServiceManger
+cd /opt/PythonServiceManger
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart service-manager
 ```
 
-## ساختار پروژه
+### ساختار پروژه
 ```
 PythonServiceManger/
-├── app.py              # فایل اصلی برنامه
+├── app.py              # برنامه اصلی
 ├── requirements.txt    # وابستگی‌ها
-├── templates/          # قالب‌های HTML
-│   ├── base.html
-│   ├── index.html
-│   ├── add_service.html
-│   ├── login.html
-│   ├── terminal.html
-│   └── file_manager.html
-└── instance/          # دیتابیس SQLite
-    └── services.db
+├── install.sh         # اسکریپت نصب
+└── static/            # فایل‌های استاتیک
 ```
 
-## مشارکت
-1. پروژه را fork کنید
-2. تغییرات خود را اعمال کنید
-3. Pull Request ارسال کنید
+### مشارکت
+1. Fork کردن پروژه
+2. ایجاد شاخه برای تغییرات
+3. ارسال Pull Request
 
-## لایسنس
-MIT 
+### لایسنس
+این پروژه تحت لایسنس MIT منتشر شده است. 
