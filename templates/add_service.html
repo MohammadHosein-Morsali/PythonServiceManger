@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>Add New Service
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Service Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               placeholder="e.g., my-fastapi-app">
+                        <div class="form-text">This will be used as the systemd service name</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="Enter a description for your service"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Project Files</label>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="project_dir" class="form-label">Project Directory Name</label>
+                                    <input type="text" class="form-control" id="project_dir" name="project_dir" required
+                                           placeholder="e.g., my-bot">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="files" class="form-label">Upload Files</label>
+                                    <input type="file" class="form-control" id="files" name="files" multiple>
+                                    <div class="form-text">You can select multiple files. Allowed: .py, .txt, .json, .yaml, .yml, .env</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="framework" class="form-label">Framework</label>
+                        <select class="form-select" id="framework" name="framework" required onchange="updateStartCommand()">
+                            <option value="python">Plain Python</option>
+                            <option value="fastapi">FastAPI</option>
+                            <option value="flask">Flask</option>
+                            <option value="custom">Custom Command</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="mainFileGroup">
+                        <label for="main_file" class="form-label">Main File</label>
+                        <input type="text" class="form-control" id="main_file" name="main_file" required
+                               placeholder="e.g., main.py">
+                        <div class="form-text">The main Python file to run</div>
+                    </div>
+                    
+                    <div class="mb-3" id="customCommandGroup" style="display: none;">
+                        <label for="custom_command" class="form-label">Custom Start Command</label>
+                        <input type="text" class="form-control" id="custom_command" name="custom_command"
+                               placeholder="e.g., python -m bot --config config.json">
+                        <div class="form-text">Custom command to run your service (optional)</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="host" class="form-label">Host</label>
+                            <input type="text" class="form-control" id="host" name="host" 
+                                   value="0.0.0.0" placeholder="e.g., 0.0.0.0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="port" class="form-label">Port</label>
+                            <input type="number" class="form-control" id="port" name="port" 
+                                   value="8000" placeholder="e.g., 8000">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="requirements" class="form-label">Requirements</label>
+                        <textarea class="form-control" id="requirements" name="requirements" rows="3"
+                                  placeholder="Enter each requirement on a new line (e.g., fastapi==0.68.0)"></textarea>
+                        <div class="form-text">One package per line (e.g., fastapi==0.68.0, uvicorn==0.15.0)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="environment_vars" class="form-label">Environment Variables</label>
+                        <textarea class="form-control" id="environment_vars" name="environment_vars" rows="3"
+                                  placeholder='{"DATABASE_URL": "postgresql://user:pass@localhost/db"}'></textarea>
+                        <div class="form-text">JSON format: {"KEY": "VALUE", "KEY2": "VALUE2"}</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Create Service
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateStartCommand() {
+    const framework = document.getElementById('framework').value;
+    const customCommandGroup = document.getElementById('customCommandGroup');
+    const mainFileGroup = document.getElementById('mainFileGroup');
+    
+    if (framework === 'custom') {
+        customCommandGroup.style.display = 'block';
+        mainFileGroup.style.display = 'none';
+        document.getElementById('main_file').required = false;
+        document.getElementById('custom_command').required = true;
+    } else {
+        customCommandGroup.style.display = 'none';
+        mainFileGroup.style.display = 'block';
+        document.getElementById('main_file').required = true;
+        document.getElementById('custom_command').required = false;
+    }
+}
+</script>
+{% endblock %} 

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-edit me-2"></i>Edit Service: {{ service.name }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Service Name</label>
+                        <input type="text" class="form-control" id="name" value="{{ service.name }}" disabled>
+                        <div class="form-text">Service name cannot be changed</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2">{{ service.description }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="framework" class="form-label">Framework</label>
+                        <select class="form-select" id="framework" name="framework" required>
+                            <option value="python" {% if service.framework == 'python' %}selected{% endif %}>Plain Python</option>
+                            <option value="fastapi" {% if service.framework == 'fastapi' %}selected{% endif %}>FastAPI</option>
+                            <option value="flask" {% if service.framework == 'flask' %}selected{% endif %}>Flask</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="file_path" class="form-label">Python File Path</label>
+                        <input type="text" class="form-control" id="file_path" name="file_path"
+                               value="{{ service.file_path }}" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="host" class="form-label">Host</label>
+                            <input type="text" class="form-control" id="host" name="host" 
+                                   value="{{ service.host }}" placeholder="e.g., 0.0.0.0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="port" class="form-label">Port</label>
+                            <input type="number" class="form-control" id="port" name="port" 
+                                   value="{{ service.port }}" placeholder="e.g., 8000">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="requirements" class="form-label">Requirements</label>
+                        <textarea class="form-control" id="requirements" name="requirements" rows="3">{{ service.requirements | replace('"', '') | replace('[', '') | replace(']', '') | replace(',', '\n') }}</textarea>
+                        <div class="form-text">One package per line (e.g., fastapi==0.68.0, uvicorn==0.15.0)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="environment_vars" class="form-label">Environment Variables</label>
+                        <textarea class="form-control" id="environment_vars" name="environment_vars" rows="3">{{ service.environment_vars }}</textarea>
+                        <div class="form-text">JSON format: {"KEY": "VALUE", "KEY2": "VALUE2"}</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

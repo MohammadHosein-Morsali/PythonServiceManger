@@ -1,0 +1,5 @@
+Flask==3.0.2
+python-systemd
+Flask-WTF==1.2.1
+Flask-SQLAlchemy==3.1.1
+python-dotenv==1.0.1 
