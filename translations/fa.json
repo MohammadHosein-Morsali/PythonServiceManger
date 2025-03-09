@@ -1,0 +1,67 @@
+{
+    "login": {
+        "title": "ورود به پنل مدیریت",
+        "password": "رمز عبور",
+        "submit": "ورود",
+        "invalid": "رمز عبور نامعتبر است!"
+    },
+    "dashboard": {
+        "title": "پنل مدیریت سرویس‌ها",
+        "add_service": "افزودن سرویس",
+        "services": "سرویس‌ها",
+        "file_manager": "مدیریت فایل",
+        "terminal": "ترمینال",
+        "logout": "خروج"
+    },
+    "services": {
+        "name": "نام",
+        "description": "توضیحات",
+        "status": "وضعیت",
+        "actions": "عملیات",
+        "start": "شروع",
+        "stop": "توقف",
+        "restart": "راه‌اندازی مجدد",
+        "logs": "لاگ‌ها",
+        "edit": "ویرایش",
+        "delete": "حذف",
+        "running": "در حال اجرا",
+        "stopped": "متوقف شده"
+    },
+    "add_service": {
+        "title": "افزودن سرویس جدید",
+        "name": "نام سرویس",
+        "description": "توضیحات",
+        "directory": "مسیر پوشه",
+        "framework": "فریم‌ورک",
+        "main_file": "فایل اصلی",
+        "additional_files": "فایل‌های اضافی",
+        "custom_command": "دستور سفارشی",
+        "submit": "ایجاد سرویس"
+    },
+    "file_manager": {
+        "title": "مدیریت فایل",
+        "upload": "آپلود فایل",
+        "new_folder": "پوشه جدید",
+        "name": "نام",
+        "size": "حجم",
+        "actions": "عملیات",
+        "delete": "حذف",
+        "download": "دانلود",
+        "path": "مسیر فعلی"
+    },
+    "terminal": {
+        "title": "ترمینال تحت وب",
+        "command": "دستور",
+        "execute": "اجرا",
+        "output": "خروجی"
+    },
+    "messages": {
+        "confirm_delete": "آیا از حذف این مورد اطمینان دارید؟",
+        "service_created": "سرویس با موفقیت ایجاد شد",
+        "service_updated": "سرویس با موفقیت به‌روز شد",
+        "service_deleted": "سرویس با موفقیت حذف شد",
+        "file_uploaded": "فایل با موفقیت آپلود شد",
+        "folder_created": "پوشه با موفقیت ایجاد شد",
+        "error": "خطا در انجام عملیات"
+    }
+} 

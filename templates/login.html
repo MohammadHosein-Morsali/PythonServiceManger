@@ -2,19 +2,24 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-4">
-        <div class="card mt-5">
-            <div class="card-header bg-primary text-white">
-                <h5 class="card-title mb-0">Login</h5>
-            </div>
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
             <div class="card-body">
+                <h3 class="card-title text-center mb-4">{{ get_text('login.title') }}</h3>
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
+                        <label for="password" class="form-label">{{ get_text('login.password') }}</label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                    <button type="submit" class="btn btn-primary w-100">{{ get_text('login.submit') }}</button>
                 </form>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} mt-3">{{ get_text('login.invalid') }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
             </div>
         </div>
     </div>

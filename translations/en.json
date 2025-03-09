@@ -1,0 +1,67 @@
+{
+    "login": {
+        "title": "Service Manager Login",
+        "password": "Password",
+        "submit": "Login",
+        "invalid": "Invalid password!"
+    },
+    "dashboard": {
+        "title": "Service Management Panel",
+        "add_service": "Add Service",
+        "services": "Services",
+        "file_manager": "File Manager",
+        "terminal": "Terminal",
+        "logout": "Logout"
+    },
+    "services": {
+        "name": "Name",
+        "description": "Description",
+        "status": "Status",
+        "actions": "Actions",
+        "start": "Start",
+        "stop": "Stop",
+        "restart": "Restart",
+        "logs": "Logs",
+        "edit": "Edit",
+        "delete": "Delete",
+        "running": "Running",
+        "stopped": "Stopped"
+    },
+    "add_service": {
+        "title": "Add New Service",
+        "name": "Service Name",
+        "description": "Description",
+        "directory": "Directory Path",
+        "framework": "Framework",
+        "main_file": "Main File",
+        "additional_files": "Additional Files",
+        "custom_command": "Custom Command",
+        "submit": "Create Service"
+    },
+    "file_manager": {
+        "title": "File Manager",
+        "upload": "Upload File",
+        "new_folder": "New Folder",
+        "name": "Name",
+        "size": "Size",
+        "actions": "Actions",
+        "delete": "Delete",
+        "download": "Download",
+        "path": "Current Path"
+    },
+    "terminal": {
+        "title": "Web Terminal",
+        "command": "Command",
+        "execute": "Execute",
+        "output": "Output"
+    },
+    "messages": {
+        "confirm_delete": "Are you sure you want to delete this item?",
+        "service_created": "Service created successfully",
+        "service_updated": "Service updated successfully",
+        "service_deleted": "Service deleted successfully",
+        "file_uploaded": "File uploaded successfully",
+        "folder_created": "Folder created successfully",
+        "error": "Operation failed"
+    }
+} 

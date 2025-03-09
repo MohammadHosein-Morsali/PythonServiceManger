@@ -25,6 +25,31 @@ if os.path.exists(config_file):
 else:
     app.config['ADMIN_PASSWORD'] = '123456'  # پسورد پیش‌فرض
 
+# تنظیمات چند زبانه
+TRANSLATIONS = {}
+for lang in ['fa', 'en']:
+    translation_file = os.path.join(os.path.dirname(__file__), f'translations/{lang}.json')
+    if os.path.exists(translation_file):
+        with open(translation_file, 'r', encoding='utf-8') as f:
+            TRANSLATIONS[lang] = json.load(f)
+
+def get_text(key, lang=None):
+    """Get translated text for the given key"""
+    if not lang:
+        lang = session.get('lang', 'fa')
+    
+    # Split the key by dots (e.g., "login.title" -> ["login", "title"])
+    parts = key.split('.')
+    value = TRANSLATIONS.get(lang, {})
+    
+    # Navigate through nested dictionary
+    for part in parts:
+        value = value.get(part, '')
+    
+    return value or key
+
+app.jinja_env.globals.update(get_text=get_text)
+
 db = SQLAlchemy(app)
 
 # Create uploads directory if it doesn't exist
@@ -431,6 +456,13 @@ def list_files():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/language/<lang>')
+def set_language(lang):
+    """Set the user's preferred language"""
+    if lang in TRANSLATIONS:
+        session['lang'] = lang
+    return redirect(request.referrer or url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
