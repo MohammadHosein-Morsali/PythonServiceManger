@@ -2,6 +2,58 @@
 
 مدیریت سرویس‌های پایتون با رابط کاربری وب. این برنامه به شما امکان می‌دهد سرویس‌های systemd را برای اپلیکیشن‌های پایتونی خود مدیریت کنید.
 
+## نصب سریع
+
+```bash
+# نصب پیش‌نیازها
+sudo apt update
+sudo apt install python3-pip python3-venv git
+
+# کلون پروژه
+git clone https://github.com/yourusername/service-manager.git
+cd service-manager
+
+# ساخت محیط مجازی و نصب وابستگی‌ها
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# تنظیم دسترسی‌های sudo
+sudo groupadd systemd-service
+sudo usermod -a -G systemd-service $USER
+sudo tee /etc/sudoers.d/service-manager << EOF
+%systemd-service ALL=(ALL) NOPASSWD: /bin/systemctl
+%systemd-service ALL=(ALL) NOPASSWD: /bin/journalctl
+%systemd-service ALL=(ALL) NOPASSWD: /bin/chmod
+%systemd-service ALL=(ALL) NOPASSWD: /bin/mv
+EOF
+
+# راه‌اندازی به عنوان سرویس
+sudo tee /etc/systemd/system/service-manager.service << EOF
+[Unit]
+Description=Python Service Manager
+After=network.target
+
+[Service]
+User=$USER
+WorkingDirectory=$(pwd)
+Environment="PATH=$(pwd)/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=$(pwd)/venv/bin/python app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# فعال‌سازی و اجرای سرویس
+sudo systemctl daemon-reload
+sudo systemctl enable service-manager
+sudo systemctl start service-manager
+
+# بررسی وضعیت
+sudo systemctl status service-manager
+```
+
 ## امکانات
 - ایجاد و مدیریت سرویس‌های systemd
 - آپلود فایل‌های پروژه و مدیریت آن‌ها
@@ -11,12 +63,6 @@
 - مشاهده لاگ‌های سرویس
 - تنظیم متغیرهای محیطی
 - مدیریت پورت و هاست
-
-## پیش‌نیازها
-- Python 3.x
-- pip
-- systemd
-- دسترسی sudo
 
 ## نصب و راه‌اندازی
 
