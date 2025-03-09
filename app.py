@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///services.db'
-app.config['UPLOAD_FOLDER'] = '/home/afzali/servermanager/uploads'
+app.config['UPLOAD_FOLDER'] = '/mnt/d/MohammadHosein/server manager/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 db = SQLAlchemy(app)
 
