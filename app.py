@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, flash
 from flask_sqlalchemy import SQLAlchemy
 import os
 import subprocess
@@ -58,18 +58,32 @@ def get_framework_start_command(framework, file_path, host, port, custom_command
     """Get the start command based on the framework"""
     if framework == 'custom' and custom_command:
         return custom_command
+
+    file_name = os.path.basename(file_path)
+    module_name = Path(file_name).stem
         
     commands = {
-        'fastapi': f"uvicorn {Path(file_path).stem}:app --host {host} --port {port}",
-        'flask': f"flask run --host={host} --port={port}",
-        'python': f"python {file_path}"
+        'fastapi': f"-m uvicorn {module_name}:app --host {host} --port {port}",
+        'flask': f"-m flask run --host={host} --port={port}",
+        'python': f"{file_name}"
     }
-    return commands.get(framework, f"python {file_path}")
+    return commands.get(framework, file_name)
 
 def create_systemd_service(service, custom_command=None):
     """Create a systemd service file with enhanced configuration"""
     env_vars = json.loads(service.environment_vars or '{}')
     env_vars_str = '\n'.join([f'Environment="{k}={v}"' for k, v in env_vars.items()])
+    
+    # Get absolute paths
+    work_dir = os.path.abspath(os.path.dirname(service.file_path))
+    
+    # Determine Python executable
+    if service.venv_path:
+        python_path = os.path.join(service.venv_path, 'Scripts', 'python.exe') if os.name == 'nt' else os.path.join(service.venv_path, 'bin', 'python')
+        env_path = f"{service.venv_path}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    else:
+        python_path = 'python3'  # Use system Python
+        env_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     
     start_command = get_framework_start_command(
         service.framework, 
@@ -85,11 +99,12 @@ After=network.target
 
 [Service]
 Type=simple
-User={os.getenv('USER')}
-WorkingDirectory={os.path.dirname(service.file_path)}
-Environment="PATH={service.venv_path}/bin:$PATH"
+User={os.getenv('USER', os.getenv('USERNAME'))}
+WorkingDirectory={work_dir}
+Environment="PATH={env_path}"
+Environment="PYTHONPATH={work_dir}"
 {env_vars_str}
-ExecStart={service.venv_path}/bin/{start_command}
+ExecStart={python_path} {start_command}
 Restart=always
 RestartSec=3
 
@@ -98,9 +113,19 @@ WantedBy=multi-user.target
 """
     service_file = f"/etc/systemd/system/{service.name}.service"
     try:
-        with open(service_file, 'w') as f:
+        # Write service content to a temporary file
+        temp_file = f"/tmp/{service.name}.service"
+        with open(temp_file, 'w') as f:
             f.write(service_content)
-        subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
+        
+        print(f"Service content:\n{service_content}")  # Debug print
+        
+        # Move the file to systemd directory using sudo
+        subprocess.run(['sudo', 'mv', temp_file, service_file], check=True)
+        # Set correct permissions
+        subprocess.run(['sudo', 'chmod', '644', service_file], check=True)
+        # Reload systemd
+        subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
         return True
     except Exception as e:
         print(f"Error creating service: {e}")
@@ -116,52 +141,30 @@ def add_service():
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
+        file_path = request.form['file_path']
+        venv_path = request.form.get('venv_path')  # Now optional
         framework = request.form['framework']
-        project_dir = request.form.get('project_dir')
-        requirements = request.form.get('requirements', '').splitlines()
+        custom_command = request.form.get('custom_command')
         port = request.form.get('port', 8000)
         host = request.form.get('host', '0.0.0.0')
         env_vars = request.form.get('environment_vars', '{}')
-        custom_command = request.form.get('custom_command')
-        main_file = request.form.get('main_file')
 
-        # Create project directory
-        project_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(project_dir))
-        os.makedirs(project_path, exist_ok=True)
+        # Validate file path
+        if not os.path.exists(file_path):
+            flash('Python file path does not exist!', 'error')
+            return redirect(url_for('add_service'))
 
-        # Handle file uploads
-        uploaded_files = request.files.getlist('files')
-        main_file_path = None
-        
-        for file in uploaded_files:
-            if file.filename:
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(project_path, filename)
-                file.save(file_path)
-                
-                # If this is the main file, store its path
-                if filename == main_file:
-                    main_file_path = file_path
-
-        # If no main file was uploaded but a name was provided, use it
-        if not main_file_path and main_file:
-            main_file_path = os.path.join(project_path, secure_filename(main_file))
-
-        # Create virtual environment
-        venv_path = os.path.join(project_path, 'venv')
-        create_venv(venv_path)
-        
-        # Install requirements
-        if requirements:
-            install_requirements(venv_path, requirements)
+        # Validate venv path only if provided
+        if venv_path and not os.path.exists(venv_path):
+            flash('Virtual environment path does not exist!', 'error')
+            return redirect(url_for('add_service'))
         
         new_service = Service(
             name=name,
             description=description,
-            file_path=main_file_path if main_file_path else project_path,
+            file_path=file_path,
             framework=framework,
-            venv_path=venv_path,
-            requirements=json.dumps(requirements),
+            venv_path=venv_path,  # Can be None
             port=port,
             host=host,
             status='stopped',
@@ -171,6 +174,9 @@ def add_service():
         if create_systemd_service(new_service, custom_command):
             db.session.add(new_service)
             db.session.commit()
+            flash('Service created successfully!', 'success')
+        else:
+            flash('Error creating service!', 'error')
             
         return redirect(url_for('index'))
     return render_template('add_service.html')
