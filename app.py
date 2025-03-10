@@ -17,6 +17,8 @@ from pathlib import Path
 from werkzeug.utils import secure_filename
 from functools import wraps
 import threading
+import platform
+import logging
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24).hex()  # کلید تصادفی برای امنیت بیشتر
@@ -613,92 +615,177 @@ def delete_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def is_wsl():
+    """Check if running under Windows Subsystem for Linux"""
+    try:
+        with open('/proc/version', 'r') as f:
+            return 'microsoft' in f.read().lower()
+    except:
+        return False
+
 # Store active terminals
 terminals = {}
 
 def set_winsize(fd, row, col, xpix=0, ypix=0):
-    winsize = struct.pack('HHHH', row, col, xpix, ypix)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+    if os.name != 'nt' or is_wsl():  # For Unix systems and WSL
+        winsize = struct.pack('HHHH', row, col, xpix, ypix)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 def read_and_forward_pty_output(fd, sid):
     max_read_bytes = 1024 * 20
     while True:
         if sid not in terminals:
+            logging.debug(f"Session {sid} not found in terminals.")
             break
+        
+        if os.name == 'nt' and not is_wsl():
+            # Windows specific handling (non-WSL)
+            try:
+                process = terminals[sid]['process']
+                output = process.stdout.read(1)
+                if output:
+                    try:
+                        decoded = output.decode('utf-8', errors='replace')
+                        socketio.emit('pty-output', {'output': decoded}, room=sid)
+                    except Exception as e:
+                        logging.error(f"Error decoding output: {e}")
+            except Exception as e:
+                logging.error(f"Error reading from process: {e}")
+                break
+        else:
+            # Unix and WSL handling
+            if terminals[sid]['fd'] != fd:
+                logging.debug(f"File descriptor mismatch for session {sid}.")
+                break
             
-        if terminals[sid]['fd'] != fd:
-            break
-            
-        try:
-            ready_to_read, _, _ = select.select([fd], [], [], 0.1)
-            if ready_to_read:
-                output = os.read(fd, max_read_bytes).decode()
-                socketio.emit('pty-output', {'output': output}, room=sid)
-        except Exception as e:
-            print(f"Error reading from PTY: {e}")
-            break
+            try:
+                ready_to_read, _, _ = select.select([fd], [], [], 0.1)
+                if ready_to_read:
+                    output = os.read(fd, max_read_bytes).decode()
+                    socketio.emit('pty-output', {'output': output}, room=sid)
+            except OSError as e:
+                logging.error(f"OS error reading from PTY: {e}")
+                break
+            except Exception as e:
+                logging.error(f"Error reading from PTY: {e}")
+                break
 
 @socketio.on('pty-input')
 def pty_input(data):
-    """write to the child pty"""
+    """write to the child pty and echo back to terminal"""
     sid = request.sid
     if sid in terminals:
-        fd = terminals[sid]['fd']
-        os.write(fd, data['input'].encode())
+        if os.name == 'nt' and not is_wsl():
+            # Windows specific handling (non-WSL)
+            try:
+                process = terminals[sid]['process']
+                input_data = data['input'].encode('utf-8')
+                process.stdin.write(input_data)
+                process.stdin.flush()
+            except Exception as e:
+                print(f"Error writing to process: {e}")
+        else:
+            # Unix and WSL handling
+            fd = terminals[sid]['fd']
+            os.write(fd, data['input'].encode())
 
 @socketio.on('resize')
 def resize(data):
     sid = request.sid
     if sid in terminals:
-        fd = terminals[sid]['fd']
-        set_winsize(fd, data['rows'], data['cols'])
+        if os.name != 'nt' or is_wsl():  # For Unix systems and WSL
+            fd = terminals[sid]['fd']
+            set_winsize(fd, data['rows'], data['cols'])
 
 @socketio.on('connect')
 def connect():
     """new client connected"""
     if 'logged_in' not in session:
+        logging.warning("Unauthorized connection attempt.")
         return False
         
     sid = request.sid
     if sid in terminals:
+        logging.debug(f"Session {sid} already exists.")
         return
         
-    # Create new pseudo-terminal
-    pid, fd = pty.fork()
-    if pid == 0:
-        # This is the child process fork.
-        # This is the same as "bash" command in the terminal
-        subprocess.run(['/bin/bash'])
+    logging.info(f"New connection established with session {sid}.")
+    if os.name == 'nt' and not is_wsl():
+        # Windows specific handling (non-WSL)
+        try:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            process = subprocess.Popen(
+                'cmd.exe',
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=0,
+                universal_newlines=False,
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            
+            terminals[sid] = {
+                'process': process,
+                'fd': None
+            }
+            
+            thread = threading.Thread(target=read_and_forward_pty_output, args=(None, sid))
+            thread.daemon = True
+            thread.start()
+        except Exception as e:
+            logging.error(f"Error creating Windows terminal: {e}")
+            return False
     else:
-        # This is the parent process fork.
-        terminals[sid] = {
-            'fd': fd,
-            'pid': pid
-        }
-        
-        # Start a new thread to continuously read and forward the output
-        thread = threading.Thread(target=read_and_forward_pty_output, args=(fd, sid))
-        thread.daemon = True
-        thread.start()
+        # Unix and WSL handling
+        try:
+            pid, fd = pty.fork()
+            if pid == 0:
+                # Child process
+                os.environ['TERM'] = 'xterm-256color'  # Set terminal type
+                subprocess.run(['/bin/bash'])
+            else:
+                # Parent process
+                terminals[sid] = {
+                    'fd': fd,
+                    'pid': pid
+                }
+                
+                thread = threading.Thread(target=read_and_forward_pty_output, args=(fd, sid))
+                thread.daemon = True
+                thread.start()
+        except Exception as e:
+            logging.error(f"Error creating Unix/WSL terminal: {e}")
+            return False
 
 @socketio.on('disconnect')
 def disconnect():
     """client disconnected"""
     sid = request.sid
+    logging.info(f"Disconnecting session {sid}.")
     if sid in terminals:
-        # Kill the process attached to this terminal
-        try:
-            os.kill(terminals[sid]['pid'], signal.SIGKILL)
-        except:
-            pass
+        if os.name == 'nt' and not is_wsl():
+            # Windows specific handling (non-WSL)
+            try:
+                terminals[sid]['process'].terminate()
+            except Exception as e:
+                logging.error(f"Error terminating Windows process: {e}")
+        else:
+            # Unix and WSL handling
+            try:
+                os.kill(terminals[sid]['pid'], signal.SIGKILL)
+            except Exception as e:
+                logging.error(f"Error killing Unix/WSL process: {e}")
             
-        # Close the PTY
-        try:
-            os.close(terminals[sid]['fd'])
-        except:
-            pass
+            try:
+                os.close(terminals[sid]['fd'])
+            except Exception as e:
+                logging.error(f"Error closing PTY file descriptor: {e}")
             
         del terminals[sid]
+        logging.info(f"Session {sid} disconnected and cleaned up.")
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000) 

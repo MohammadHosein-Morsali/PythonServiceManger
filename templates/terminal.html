@@ -60,6 +60,7 @@
         // Handle connection
         socket.on('connect', () => {
             term.write('\r\n🔌 Connected to server\r\n');
+            socket.emit('resize', { cols: term.cols, rows: term.rows });
         });
         
         // Handle disconnection
@@ -74,7 +75,9 @@
         
         // Handle terminal input
         term.onData(data => {
-            socket.emit('pty-input', { input: data });
+            if (socket.connected) {
+                socket.emit('pty-input', { input: data });
+            }
         });
         
         // Handle terminal resize
