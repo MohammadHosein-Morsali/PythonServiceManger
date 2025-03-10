@@ -1,20 +1,29 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO, emit
 import os
 import subprocess
 import json
 import venv
 import shutil
+import pty
+import select
+import termios
+import struct
+import fcntl
+import signal
 from datetime import datetime
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from functools import wraps
+import threading
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24).hex()  # کلید تصادفی برای امنیت بیشتر
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///services.db'
 app.config['UPLOAD_FOLDER'] = os.path.expanduser('~/servermanager/uploads')  # تغییر مسیر به پوشه کاربر
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # خواندن پسورد از فایل کانفیگ
 config_file = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -49,6 +58,8 @@ def get_text(key, lang=None):
     return value or key
 
 app.jinja_env.globals.update(get_text=get_text)
+app.jinja_env.globals['len'] = len
+app.jinja_env.globals['os'] = os
 
 db = SQLAlchemy(app)
 
@@ -217,24 +228,131 @@ def execute_command():
     except Exception as e:
         return jsonify({'error': str(e)})
 
+def run_with_elevation(command):
+    """Run a command with elevated privileges"""
+    if os.name == 'nt':  # Windows
+        try:
+            return subprocess.run(command, shell=True, capture_output=True, text=True)
+        except Exception as e:
+            print(f"Error running elevated command: {e}")
+            return None
+    else:  # Linux/Unix/WSL
+        try:
+            # Use -S to read password from stdin if needed
+            sudo_command = ['sudo', '-n'] + command if isinstance(command, list) else ['sudo', '-n'] + command.split()
+            return subprocess.run(sudo_command, capture_output=True, text=True)
+        except Exception as e:
+            print(f"Error running sudo command: {e}")
+            return None
+
+def setup_sudo_nopasswd():
+    """Setup sudo NOPASSWD for the current user"""
+    try:
+        username = os.getenv('USER')
+        # Check if NOPASSWD is already configured
+        sudoers_file = f"/etc/sudoers.d/{username}"
+        if not os.path.exists(sudoers_file):
+            # Create a temporary file
+            with open('/tmp/sudoers_temp', 'w') as f:
+                f.write(f"{username} ALL=(ALL) NOPASSWD: ALL\n")
+            # Use visudo to safely install the new sudoers file
+            subprocess.run(['sudo', 'cp', '/tmp/sudoers_temp', sudoers_file], check=True)
+            subprocess.run(['sudo', 'chmod', '0440', sudoers_file], check=True)
+            os.remove('/tmp/sudoers_temp')
+            print(f"NOPASSWD sudo access configured for user {username}")
+    except Exception as e:
+        print(f"Error setting up NOPASSWD: {e}")
+
 @app.route('/file_manager')
 @login_required
 def file_manager():
-    path = request.args.get('path', '/')
+    # Setup NOPASSWD sudo if needed
+    setup_sudo_nopasswd()
+    
+    # Define safe directories that we know should work
+    safe_paths = {
+        'Current': os.getcwd(),
+        'Home': os.path.expanduser('~'),
+        'Desktop': os.path.join(os.path.expanduser('~'), 'Desktop'),
+        'Documents': os.path.join(os.path.expanduser('~'), 'Documents'),
+        'Downloads': os.path.join(os.path.expanduser('~'), 'Downloads'),
+        'Upload': app.config['UPLOAD_FOLDER'],
+        'Root': '/',  # WSL uses Linux paths
+        'Windows': '/mnt/c'  # Add Windows C: drive access through WSL
+    }
+    
+    # Get the requested path or use current directory as default
+    path = request.args.get('path')
+    if not path:
+        path = safe_paths['Current']
+    
     try:
+        # Try to list directory with elevated privileges
+        result = run_with_elevation(['ls', '-la', path])
+        if not result or result.returncode != 0:
+            raise PermissionError(f"Cannot access path: {path}")
+        
         items = []
-        for item in os.listdir(path):
-            full_path = os.path.join(path, item)
+        # Add parent directory if not in root
+        if path != '/':
+            parent_path = os.path.dirname(path)
             items.append({
-                'name': item,
-                'path': full_path,
-                'type': 'directory' if os.path.isdir(full_path) else 'file',
-                'size': os.path.getsize(full_path) if os.path.isfile(full_path) else 0
+                'name': '..',
+                'path': parent_path,
+                'type': 'directory',
+                'size': 0
             })
+        
+        # Add quick access paths
+        for name, safe_path in safe_paths.items():
+            if os.path.exists(safe_path):
+                items.append({
+                    'name': f'[{name}]',
+                    'path': safe_path,
+                    'type': 'directory',
+                    'size': 0
+                })
+
+        # Parse ls output for better file information
+        for line in result.stdout.splitlines()[1:]:  # Skip total line
+            try:
+                parts = line.split()
+                if len(parts) < 9:
+                    continue
+                    
+                perms, _, owner, group, size, month, day, time_or_year, *name_parts = parts
+                name = ' '.join(name_parts)
+                
+                if name in ('.', '..'):
+                    continue
+                    
+                full_path = os.path.join(path, name)
+                is_dir = perms.startswith('d')
+                
+                items.append({
+                    'name': name,
+                    'path': full_path,
+                    'type': 'directory' if is_dir else 'file',
+                    'size': int(size),
+                    'perms': perms,
+                    'owner': owner,
+                    'group': group
+                })
+            except (ValueError, IndexError):
+                continue
+
         return render_template('file_manager.html', items=items, current_path=path)
     except Exception as e:
-        flash(f'Error accessing path: {str(e)}', 'error')
-        return redirect(url_for('file_manager', path='/'))
+        flash(f'Error accessing directory: {str(e)}', 'error')
+        # Try to create upload directory with elevated privileges if not already exists
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            run_with_elevation(['mkdir', '-p', app.config['UPLOAD_FOLDER']])
+            run_with_elevation(['chmod', '777', app.config['UPLOAD_FOLDER']])
+        if path != app.config['UPLOAD_FOLDER']:
+            return redirect(url_for('file_manager', path=app.config['UPLOAD_FOLDER']))
+        else:
+            # Already in the upload directory and still failing, render empty view with error
+            return render_template('file_manager.html', items=[], current_path=path)
 
 @app.route('/copy_path')
 @login_required
@@ -345,12 +463,16 @@ def delete_service(service_id):
     service = Service.query.get_or_404(service_id)
     
     try:
-        # Stop and disable the service
-        subprocess.run(['sudo', 'systemctl', 'stop', f"{service.name}.service"])
-        subprocess.run(['sudo', 'systemctl', 'disable', f"{service.name}.service"])
-        # Remove service file
-        os.remove(f"/etc/systemd/system/{service.name}.service")
-        subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
+        # Stop and disable the service; ignore errors if unit is not loaded
+        subprocess.run(['sudo', 'systemctl', 'stop', f"{service.name}.service"], check=False)
+        subprocess.run(['sudo', 'systemctl', 'disable', f"{service.name}.service"], check=False)
+        
+        # Remove service file if it exists
+        service_file = f"/etc/systemd/system/{service.name}.service"
+        if os.path.exists(service_file):
+            os.remove(service_file)
+        
+        subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=False)
         
         # Remove virtual environment if exists
         if service.venv_path and os.path.exists(service.venv_path):
@@ -375,12 +497,16 @@ def view_logs(service_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/create_directory', methods=['POST'])
+@login_required
 def create_directory():
     try:
         directory = request.form.get('directory')
         if directory:
             full_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(directory))
-            os.makedirs(full_path, exist_ok=True)
+            if os.name == 'nt':
+                os.makedirs(full_path, exist_ok=True)
+            else:
+                run_with_elevation(['mkdir', '-p', full_path])
             return jsonify({'success': True, 'path': full_path})
         return jsonify({'error': 'No directory name provided'}), 400
     except Exception as e:
@@ -464,5 +590,115 @@ def set_language(lang):
         session['lang'] = lang
     return redirect(request.referrer or url_for('index'))
 
+@app.route('/delete_file', methods=['POST'])
+@login_required
+def delete_file():
+    try:
+        path = request.form.get('path')
+        if not path:
+            return jsonify({'error': 'No path provided'}), 400
+            
+        if os.name == 'nt':
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+        else:
+            if os.path.isdir(path):
+                run_with_elevation(['rm', '-rf', path])
+            else:
+                run_with_elevation(['rm', path])
+                
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Store active terminals
+terminals = {}
+
+def set_winsize(fd, row, col, xpix=0, ypix=0):
+    winsize = struct.pack('HHHH', row, col, xpix, ypix)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+
+def read_and_forward_pty_output(fd, sid):
+    max_read_bytes = 1024 * 20
+    while True:
+        if sid not in terminals:
+            break
+            
+        if terminals[sid]['fd'] != fd:
+            break
+            
+        try:
+            ready_to_read, _, _ = select.select([fd], [], [], 0.1)
+            if ready_to_read:
+                output = os.read(fd, max_read_bytes).decode()
+                socketio.emit('pty-output', {'output': output}, room=sid)
+        except Exception as e:
+            print(f"Error reading from PTY: {e}")
+            break
+
+@socketio.on('pty-input')
+def pty_input(data):
+    """write to the child pty"""
+    sid = request.sid
+    if sid in terminals:
+        fd = terminals[sid]['fd']
+        os.write(fd, data['input'].encode())
+
+@socketio.on('resize')
+def resize(data):
+    sid = request.sid
+    if sid in terminals:
+        fd = terminals[sid]['fd']
+        set_winsize(fd, data['rows'], data['cols'])
+
+@socketio.on('connect')
+def connect():
+    """new client connected"""
+    if 'logged_in' not in session:
+        return False
+        
+    sid = request.sid
+    if sid in terminals:
+        return
+        
+    # Create new pseudo-terminal
+    pid, fd = pty.fork()
+    if pid == 0:
+        # This is the child process fork.
+        # This is the same as "bash" command in the terminal
+        subprocess.run(['/bin/bash'])
+    else:
+        # This is the parent process fork.
+        terminals[sid] = {
+            'fd': fd,
+            'pid': pid
+        }
+        
+        # Start a new thread to continuously read and forward the output
+        thread = threading.Thread(target=read_and_forward_pty_output, args=(fd, sid))
+        thread.daemon = True
+        thread.start()
+
+@socketio.on('disconnect')
+def disconnect():
+    """client disconnected"""
+    sid = request.sid
+    if sid in terminals:
+        # Kill the process attached to this terminal
+        try:
+            os.kill(terminals[sid]['pid'], signal.SIGKILL)
+        except:
+            pass
+            
+        # Close the PTY
+        try:
+            os.close(terminals[sid]['fd'])
+        except:
+            pass
+            
+        del terminals[sid]
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000) 
