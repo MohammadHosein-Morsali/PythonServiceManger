@@ -96,8 +96,11 @@ EOF
 # تنظیم فایروال
 print_message "در حال تنظیم فایروال..."
 ufw allow $PANEL_PORT/tcp
+ufw allow 22/tcp  # Allow SSH connections
+ufw allow 80/tcp  # Allow HTTP
+ufw allow 443/tcp # Allow HTTPS
+# Add any other ports you need here
 ufw --force enable
-
 # راه‌اندازی سرویس
 print_message "در حال راه‌اندازی سرویس..."
 systemctl daemon-reload
@@ -118,4 +121,4 @@ else
     print_error "خطا در راه‌اندازی سرویس"
     echo "برای بررسی خطا:"
     echo "journalctl -u service-manager -n 50"
-fi 
+fi
